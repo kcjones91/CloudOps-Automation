@@ -18,6 +18,33 @@ param(
     [string]$VMList
 )
 
+# Function for intelligent snapshot name truncation
+function Get-ValidSnapshotName {
+    param(
+        [string]$DiskName,
+        [string]$TicketNumber,
+        [string]$Timestamp
+    )
+    
+    $maxLength = 80
+    $suffix = "-snapshot-$TicketNumber-$Timestamp"
+    $proposedName = "$DiskName$suffix"
+    
+    if ($proposedName.Length -gt $maxLength) {
+        # Calculate how much space we have for the disk name
+        $availableLength = $maxLength - $suffix.Length
+        
+        # Truncate disk name to fit, ensuring we don't end with a hyphen
+        $truncatedDiskName = $DiskName.Substring(0, $availableLength).TrimEnd('-')
+        $finalName = "$truncatedDiskName$suffix"
+        
+        Write-Warning "Disk name truncated from '$DiskName' to '$truncatedDiskName' to fit 80-char limit"
+        return $finalName
+    }
+    
+    return $proposedName
+}
+
 # Fail if no ticket number provided
 if ([string]::IsNullOrEmpty($TicketNumber)){
     throw "ERROR: Ticket number is required. Use -TicketNumber parameter."
@@ -102,7 +129,7 @@ foreach ($CurrentVMName in $VMsToProcess) {
         Write-Output "Creating OS disk snapshot..."
         $osDiskId = $vm.StorageProfile.OsDisk.ManagedDisk.Id
         $osDiskName = $vm.StorageProfile.OsDisk.Name
-        $osSnapshotName = "$osDiskName-snapshot-$TicketNumber-$timestamp"
+        $osSnapshotName = Get-ValidSnapshotName -DiskName $osDiskName -TicketNumber $TicketNumber -Timestamp $timestamp
         $vmResult.OSSnapshotName = $osSnapshotName
         
         # Check if snapshot already exists
@@ -136,7 +163,7 @@ foreach ($CurrentVMName in $VMsToProcess) {
             foreach ($dataDisk in $vm.StorageProfile.DataDisks) {
                 $dataDiskId = $dataDisk.ManagedDisk.Id
                 $dataDiskName = $dataDisk.Name
-                $dataSnapshotName = "$dataDiskName-snapshot-$TicketNumber-$timestamp"
+                $dataSnapshotName = Get-ValidSnapshotName -DiskName $dataDiskName -TicketNumber $TicketNumber -Timestamp $timestamp
                 
                 $dataSnapshotResult = [PSCustomObject]@{
                     DiskName = $dataDiskName
