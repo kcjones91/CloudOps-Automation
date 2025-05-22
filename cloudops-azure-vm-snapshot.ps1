@@ -15,7 +15,10 @@ param(
     [switch]$MultipleVMs,
     
     [Parameter(Mandatory=$false)]
-    [string]$VMList
+    [string]$VMList,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$SubscriptionName
 )
 
 # Function for intelligent snapshot name truncation
@@ -55,6 +58,18 @@ Write-Output "Verifying Azure connection..."
 $context = Get-AzContext
 if (-not $context) {
     throw "No Azure context found. Please run 'Connect-AzAccount'."
+}
+
+# Switch to target subscription if specified
+if ($SubscriptionName) {
+    Write-Output "Switching to subscription: $SubscriptionName"
+    try {
+        Set-AzContext -SubscriptionName $SubscriptionName -ErrorAction Stop
+        $context = Get-AzContext
+        Write-Output "Successfully switched to subscription: $($context.Subscription.Name)"
+    } catch {
+        throw "Failed to switch to subscription '$SubscriptionName'. Please verify the subscription name and your permissions."
+    }
 }
 
 # Verify we can actually make calls
